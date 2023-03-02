@@ -64,7 +64,7 @@ export function startWorker() {
     downloadQueue.name,
     path.resolve("build/src/processes/downloadRepository.js"),
     {
-      concurrency: 3,
+      concurrency: 5,
       connection,
       autorun: true,
     }
