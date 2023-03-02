@@ -11,11 +11,11 @@
           <!--Grid column-->
           <div class="col-md-12 mb-4 white-text text-center fadeIn">
             <h3 class="display-4 font-weight-bold white-text mb-0 pt-5">
-              Anonymous GitHub
+              AutoML Conf Anonymous GitHub
             </h3>
             <hr class="hr-light my-4 w-75" />
             <h4 class="subtext-header mt-2 mb-4">
-              Anonymize your repository in 5 min as {{stat.nbUsers | number}}
+              Anonymize your repository for the AutoML Conference in 5 min as {{stat.nbUsers | number}}
               users already did.
             </h4>
             <span ng-if="!user">
@@ -49,7 +49,7 @@
               <li>Complete the list of terms that will be anonymized.</li>
               <li>Anonymize and share your link in your double-anonymized paper.</li>
             </ol>
-            Example of an anonymized repository:
+            Example of an anonymized repository on the official Anonymous GitHub instance:
             <a
               target="_self"
               href="https://anonymous.4open.science/r/840c8c57-3c32-451e-bf12-0e20be300389/"
@@ -59,7 +59,37 @@
         </div>
       </div>
 
+      <div class="container">
+      <!--Grid row-->
+      <div class="row pt-5">
+        <div class="col-md-12">
+          <h2 id="automlconf">An Anonymous GitHub Instance for the AutoML Conference</h2>
+          <div class="card-text mb-auto">
+            This instance of Anonymous GitHub is specifically hosted by and for the <a
+              target="_self"
+              href="https://automl.cc/"
+              >the AutoMl Conference</a
+            >.
+            The official Anonymous GitHub <a
+              target="_self"
+              href="https://anonymous.4open.science/"
+              >instance</a is hosted and <a
+              target="_self"
+              href="https://github.com/tdurieux/anonymous_github/"
+              >developed</a
+            > by <a
+              target="_self"
+              href="https://durieux.me/"
+              >Thomas Durieux</a
+            >.
+            Our instance aims to reduce the load and costs of the official instance and enable reviewers to download
+            repositories of up to 200 MB.
+          </div>
+        </div>
+      </div>
+
       <hr class="featurette-divider" />
+
 
       <div class="row featurette">
         <div class="col-md-7 order-md-2">
