@@ -40,14 +40,15 @@
           Pull Requests
         </a>
       </li>
-      <li class="nav-item" ng-if="user">
-        <a
-          class="nav-link"
-          ng-class="{'active':path == '/conferences'}"
-          href="/conferences"
-          >Conferences</a
-        >
-      </li>
+<!--      Disable CInferences for this instance-->
+<!--      <li class="nav-item" ng-if="user">-->
+<!--        <a-->
+<!--          class="nav-link"-->
+<!--          ng-class="{'active':path == '/conferences'}"-->
+<!--          href="/conferences"-->
+<!--          >Conferences</a-->
+<!--        >-->
+<!--      </li>-->
       <li class="nav-item" ng-if="user">
         <a
           class="nav-link"
@@ -107,7 +108,7 @@
         <a
           class="nav-link"
           target="_blank"
-          href="lennart.purucker@uni-siegen.de"
+          href="mailto:lennart.purucker@uni-siegen.de"
           data-offset="30"
           >Report an issue
         </a>

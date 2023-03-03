@@ -405,8 +405,8 @@
                           {{site_options.MAX_REPO_SIZE * 1024| humanFileSize}}.
                           This repository is {{details.size * 8 *1024 |
                           humanFileSize}}. Download will download the repository
-                          the repository on the anonymous.4open.science server,
-                          it is faster and offer more features.</small
+                          the repository on the server,
+                          it is faster and offers more features.</small
                         >
                       </div>
                     </div>
@@ -427,7 +427,7 @@
                           >Enable anonymized Github pages. It currently only
                           supported for Github pages that are defined in the
                           same branch. It will be available at
-                          https://anonymous.4open.science/w/{{repoId}}</small
+                          https://{{site_options.APP_HOSTNAME}}/w/{{repoId}}</small
                         >
                       </div>
                     </div>
