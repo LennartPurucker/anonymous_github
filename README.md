@@ -1,10 +1,10 @@
-# Anonymous Github Instance for the AutoML Conference 
+# Anonymous GitHub Instance for the AutoML Conference 
 
-Anonymous Github is a system that helps anonymize Github repositories for double-anonymous paper submissions. 
+Anonymous GitHub is a system that helps anonymize GitHub repositories for double-anonymous paper submissions. 
 
-This repository contains the code for an instance of Anonymous Github hosted by and for the AutoML Conference (https://automl.cc/). 
+This repository contains the code for an instance of Anonymous GitHub hosted by and for the AutoML Conference (https://automl.cc/). 
 
-The official public instance of Anonymous Github is hosted at https://anonymous.4open.science/ 
+The official public instance of Anonymous GitHub is hosted at https://anonymous.4open.science/ 
 maintained and developed by Thomas Durieux. 
 See the upstream repository (https://github.com/tdurieux/anonymous_github) for more details 
 
