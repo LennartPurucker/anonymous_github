@@ -8,8 +8,8 @@ The official public instance of Anonymous GitHub is hosted at https://anonymous.
 maintained and developed by Thomas Durieux. 
 See the upstream repository (https://github.com/tdurieux/anonymous_github) for more details 
 
-
-### Instance Documentation 
+## Developer Documentation
+### Instance Setup Documentation 
 
 #### 1. Clone the repository
 
@@ -49,8 +49,29 @@ docker-compose up -d
 
 #### 4. (Recommended) nginx and cloudflare setup
 
-TODO: Add description. Right now, we use cloudflare and nginx.
+TODO: Add description. Right now, we use nginx.
 
-#### 6. Rebuild when needed
+#### 5. Rebuild when needed
 Clear the docker containers , e.g. by calling `docker system prune -a` before calling `docker-compose up -d`
 such that changes to the code base can change the deployment. 
+
+### Maintainer Documentation
+
+#### General
+
+* Anonymized repos are downloaded and stored under `./repositories_backups` on the server.
+
+#### Changes compared to the original Anonymous GitHub
+
+* We force downloads of repositories up to 500 MB with individual files up to 50 MB to facilitate reproducibility reviews.
+* We do not guarantee that the anonymized repositories will be available forever after a conference. We will keep them at least until after the conference took place (each year). 
+* We do not support the Conference ID or Auto update features for anonymized repositories.
+* We force the user to set an expiration date for the repo. 
+
+#### Restarting the Webserver
+After changing the code, the webserver needs to be restarted to make the code change take effect. 
+This can be done by calling:
+
+```bash
+docker compose -f -build --force-recreate --no-deps -d
+```
