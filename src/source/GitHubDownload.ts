@@ -8,8 +8,9 @@ import storage from "../storage";
 import Repository from "../Repository";
 import GitHubBase from "./GitHubBase";
 import AnonymizedFile from "../AnonymizedFile";
-import { RepositoryStatus, SourceBase } from "../types";
+import { FILE_TYPE, RepositoryStatus, SourceBase } from "../types";
 import AnonymousError from "../AnonymousError";
+import { tryCatch } from "bullmq";
 
 export default class GitHubDownload extends GitHubBase implements SourceBase {
   constructor(
@@ -91,13 +92,13 @@ export default class GitHubDownload extends GitHubBase implements SourceBase {
 
     const that = this;
     async function updateProgress() {
-      if (progress && that.repository.status) {
-        await that.repository.updateStatus(
-          that.repository.status,
-          progress.transferred.toString()
-        );
-      }
       if (inDownload) {
+        if (progress && that.repository.status == RepositoryStatus.DOWNLOAD) {
+          await that.repository.updateStatus(
+            that.repository.status,
+            progress.transferred.toString()
+          );
+        }
         progressTimeout = setTimeout(updateProgress, 1500);
       }
     }
@@ -105,7 +106,9 @@ export default class GitHubDownload extends GitHubBase implements SourceBase {
 
     try {
       const downloadStream = got.stream(response.url);
-      downloadStream.addListener("downloadProgress", (p) => (progress = p));
+      downloadStream.addListener("downloadProgress", async (p) => {
+        progress = p;
+      });
       await storage.extractZip(originalPath, downloadStream, undefined, this);
     } catch (error) {
       await this.repository.updateStatus(
@@ -122,22 +125,35 @@ export default class GitHubDownload extends GitHubBase implements SourceBase {
       clearTimeout(progressTimeout);
     }
 
-    await this.repository.updateStatus(RepositoryStatus.READY);
+    this.repository.model.isReseted = false;
+    try {
+      await this.repository.updateStatus(RepositoryStatus.READY);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   async getFileContent(file: AnonymizedFile): Promise<Readable> {
-    if (await storage.exists(file.originalCachePath)) {
+    const exists = await storage.exists(file.originalCachePath);
+    if (exists === FILE_TYPE.FILE) {
       return storage.read(file.originalCachePath);
+    } else if (exists === FILE_TYPE.FOLDER) {
+      throw new AnonymousError("folder_not_supported", {
+        httpStatus: 400,
+        object: file,
+      });
     }
+    // will throw an error if the file is not in the repository
+    await file.originalPath();
+
+    // the cache is not ready, we need to download the repository
     await this.download();
-    // update the file list
-    await this.repository.files({ force: true });
     return storage.read(file.originalCachePath);
   }
 
   async getFiles() {
     const folder = this.repository.originalCachePath;
-    if (!(await storage.exists(folder))) {
+    if ((await storage.exists(folder)) === FILE_TYPE.NOT_FOUND) {
       await this.download();
     }
     return storage.listFiles(folder);

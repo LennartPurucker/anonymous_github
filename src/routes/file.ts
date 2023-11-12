@@ -8,11 +8,21 @@ export const router = express.Router();
 router.get(
   "/:repoId/file/:path*",
   async (req: express.Request, res: express.Response) => {
-    let anonymizedPath = req.params.path;
-    if (req.params[0]) {
-      anonymizedPath += req.params[0];
+    const anonymizedPath = decodeURI(
+      new URL(req.url, `${req.protocol}://${req.hostname}`).pathname.replace(
+        `/${req.params.repoId}/file/`,
+        ""
+      )
+    );
+    if (anonymizedPath.endsWith("/")) {
+      return handleError(
+        new AnonymousError("folder_not_supported", {
+          httpStatus: 404,
+          object: anonymizedPath,
+        }),
+        res
+      );
     }
-    anonymizedPath = anonymizedPath;
 
     const repo = await getRepo(req, res, {
       nocheck: false,
@@ -31,9 +41,11 @@ router.get(
           object: f,
         });
       }
-      res.attachment(
-        anonymizedPath.substring(anonymizedPath.lastIndexOf("/") + 1)
-      );
+      if (req.query.download) {
+        res.attachment(
+          anonymizedPath.substring(anonymizedPath.lastIndexOf("/") + 1)
+        );
+      }
       // cache the file for 5min
       res.header("Cache-Control", "max-age=300");
       await Promise.all([repo.countView(), f.send(res)]);

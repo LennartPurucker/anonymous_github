@@ -1,4 +1,4 @@
-import { SourceBase, StorageBase, Tree } from "../types";
+import { FILE_TYPE, SourceBase, StorageBase, Tree } from "../types";
 import config from "../../config";
 
 import * as fs from "fs";
@@ -9,6 +9,7 @@ import { Readable, pipeline, Transform } from "stream";
 import * as archiver from "archiver";
 import { promisify } from "util";
 import AnonymizedFile from "../AnonymizedFile";
+import { lookup } from "mime-types";
 
 export default class FileSystem implements StorageBase {
   type = "FileSystem";
@@ -16,18 +17,36 @@ export default class FileSystem implements StorageBase {
   constructor() {}
 
   /** @override */
-  async exists(p: string): Promise<boolean> {
-    return fs.existsSync(join(config.FOLDER, p));
+  async exists(p: string): Promise<FILE_TYPE> {
+    try {
+      const stat = await fs.promises.stat(join(config.FOLDER, p));
+      if (stat.isDirectory()) return FILE_TYPE.FOLDER;
+      if (stat.isFile()) return FILE_TYPE.FILE;
+    } catch (_) {
+      // ignore file not found or not downloaded
+    }
+    return FILE_TYPE.NOT_FOUND;
   }
 
   /** @override */
-  send(p: string, res: Response) {
+  async send(p: string, res: Response) {
     res.sendFile(join(config.FOLDER, p), { dotfiles: "allow" });
   }
 
   /** @override */
-  read(p: string): Readable {
+  async read(p: string): Promise<Readable> {
     return fs.createReadStream(join(config.FOLDER, p));
+  }
+
+  async fileInfo(path: string) {
+    const info = await fs.promises.stat(join(config.FOLDER, path));
+    return {
+      size: info.size,
+      lastModified: info.mtime,
+      contentType: info.isDirectory()
+        ? "application/x-directory"
+        : (lookup(join(config.FOLDER, path)) as string),
+    };
   }
 
   /** @override */
@@ -37,11 +56,7 @@ export default class FileSystem implements StorageBase {
     file?: AnonymizedFile,
     source?: SourceBase
   ): Promise<void> {
-    if (!(await this.exists(dirname(p)))) {
-      await fs.promises.mkdir(dirname(join(config.FOLDER, p)), {
-        recursive: true,
-      });
-    }
+    await this.mk(dirname(p));
     return fs.promises.writeFile(join(config.FOLDER, p), data);
   }
 
@@ -55,7 +70,7 @@ export default class FileSystem implements StorageBase {
 
   /** @override */
   async mk(dir: string): Promise<void> {
-    if (!(await this.exists(dir)))
+    if ((await this.exists(dir)) === FILE_TYPE.NOT_FOUND)
       fs.promises.mkdir(join(config.FOLDER, dir), { recursive: true });
   }
 
@@ -120,7 +135,7 @@ export default class FileSystem implements StorageBase {
   }
 
   /** @override */
-  archive(
+  async archive(
     dir: string,
     opt?: {
       format?: "zip" | "tar";
@@ -130,8 +145,8 @@ export default class FileSystem implements StorageBase {
     const archive = archiver(opt?.format || "zip", {});
 
     this.listFiles(dir, {
-      onEntry: (file) => {
-        let rs = this.read(file.path);
+      onEntry: async (file) => {
+        let rs = await this.read(file.path);
         if (opt?.fileTransformer) {
           // apply transformation on the stream
           rs = rs.pipe(opt.fileTransformer(file.path));

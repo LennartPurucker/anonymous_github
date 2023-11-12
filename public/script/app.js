@@ -5,17 +5,9 @@ angular
     "ui.ace",
     "ngPDFViewer",
     "pascalprecht.translate",
-    "angular-google-analytics",
     "admin",
   ])
-  .config(function (
-    $routeProvider,
-    $locationProvider,
-    $translateProvider,
-    AnalyticsProvider
-  ) {
-    AnalyticsProvider.setAccount("UA-5954162-28");
-
+  .config(function ($routeProvider, $locationProvider, $translateProvider) {
     $translateProvider.useStaticFilesLoader({
       prefix: "/i18n/locale-",
       suffix: ".json",
@@ -142,7 +134,6 @@ angular
       });
     $locationProvider.html5Mode(true);
   })
-  .run(["Analytics", function (Analytics) {}])
   .filter("humanFileSize", function () {
     return function humanFileSize(bytes, si = false, dp = 1) {
       const thresh = si ? 1000 : 1024;
@@ -259,7 +250,7 @@ angular
         },
         link: function (scope, elem, attrs) {
           function update() {
-            elem.html(marked(scope.content, { baseUrl: $location.url() }));
+            elem.html(renderMD(scope.content, $location.url()));
           }
           scope.$watch(attrs.terms, update);
           scope.$watch("terms", update);
@@ -999,9 +990,7 @@ angular
       $scope.terms = "";
       $scope.defaultTerms = "";
       $scope.branches = [];
-      $scope.repositories = [];
       $scope.source = {
-        type: "GitHubStream",
         branch: "",
         commit: "",
       };
@@ -1078,17 +1067,6 @@ angular
           });
         }
       });
-
-      $scope.getRepositories = (force) => {
-        $http
-          .get("/api/user/all_repositories", {
-            params: { force: force === true ? "1" : "0" },
-          })
-          .then((res) => {
-            $scope.repositories = res.data;
-          });
-      };
-      $scope.getRepositories();
 
       $scope.repoSelected = async () => {
         $scope.terms = $scope.defaultTerms;
@@ -1176,14 +1154,6 @@ angular
           resetValidity();
           const res = await $http.get(`/api/repo/${o.owner}/${o.repo}/`);
           $scope.details = res.data;
-          if ($scope.details.size > $scope.site_options.MAX_REPO_SIZE) {
-            $scope.anonymize.mode.$$element[0].disabled = true;
-
-            $scope.$apply(() => {
-              $scope.source.type = "GitHubStream";
-              checkSourceType();
-            });
-          }
           if (!$scope.repoId) {
             $scope.repoId = $scope.details.repo + "-" + generateRandomId(4);
           }
@@ -1341,7 +1311,7 @@ angular
         }
 
         $scope.anonymize_readme = content;
-        const html = marked($scope.anonymize_readme);
+        const html = renderMD($scope.anonymize_readme, $location.url());
         $scope.html_readme = $sce.trustAsHtml(html);
         setTimeout(Prism.highlightAll, 150);
       }
@@ -1453,7 +1423,7 @@ angular
         const selected = $scope.branches.filter(
           (f) => f.name == $scope.source.branch
         )[0];
-        checkSourceType();
+        checkHasPage();
 
         if (selected) {
           $scope.source.commit = selected.commit;
@@ -1464,21 +1434,14 @@ angular
         }
       });
 
-      function checkSourceType() {
-        if ($scope.source.type == "GitHubStream") {
-          $scope.options.page = false;
-          //$scope.anonymize.page.$$element[0].disabled = true;
-        } else {
-          if ($scope.details && $scope.details.hasPage) {
-            $scope.anonymize.page.$$element[0].disabled = false;
-            if ($scope.details.pageSource.branch != $scope.source.branch) {
-              $scope.anonymize.page.$$element[0].disabled = true;
-            }
+      function checkHasPage() {
+        if ($scope.details && $scope.details.hasPage) {
+          $scope.anonymize.page.$$element[0].disabled = false;
+          if ($scope.details.pageSource.branch != $scope.source.branch) {
+            $scope.anonymize.page.$$element[0].disabled = true;
           }
         }
       }
-
-      $scope.$watch("source.type", checkSourceType);
 
       $scope.$watch("terms", anonymize);
       $scope.$watch("options.image", anonymize);
@@ -1516,13 +1479,26 @@ angular
         "heif",
         "heic",
       ];
+      const mediaFiles = [
+        "wav",
+        "mp3",
+        "ogg",
+        "mp4",
+        "avi",
+        "webm",
+        "mov",
+        "mpg",
+        "wma",
+      ];
 
       $scope.$on("$routeUpdate", function (event, current) {
         if (($routeParams.path || "") == $scope.filePath) {
           return;
         }
         $scope.filePath = $routeParams.path || "";
-        $scope.paths = $scope.filePath.split("/");
+        $scope.paths = $scope.filePath
+          .split("/")
+          .filter((f) => f && f.trim().length > 0);
 
         if ($scope.repoId != $routeParams.repoId) {
           return init();
@@ -1531,45 +1507,55 @@ angular
         updateContent();
       });
 
+      function selectFile() {
+        const readmePriority = [
+          "readme.md",
+          "readme.txt",
+          "readme.org",
+          "readme.1st",
+          "readme",
+        ];
+        // find current folder
+        let currentFolder = $scope.files;
+        for (const p of $scope.paths) {
+          if (currentFolder[p]) {
+            currentFolder = currentFolder[p];
+          }
+        }
+        if (currentFolder.size && Number.isInteger(currentFolder.size)) {
+          // a file is already selected
+          return;
+        }
+        const readmeCandidates = {};
+        for (const file in currentFolder) {
+          if (file.toLowerCase().indexOf("readme") > -1) {
+            readmeCandidates[file.toLowerCase()] = file;
+          }
+        }
+        let best_match = null;
+        for (const p of readmePriority) {
+          if (readmeCandidates[p]) {
+            best_match = p;
+            break;
+          }
+        }
+        if (!best_match && Object.keys(readmeCandidates).length > 0)
+          best_match = Object.keys(readmeCandidates)[0];
+        if (best_match) {
+          let uri = $location.url();
+          if (uri[uri.length - 1] != "/") {
+            uri += "/";
+          }
+
+          // redirect to readme
+          $location.url(uri + readmeCandidates[best_match]);
+        }
+      }
       function getFiles(callback) {
         $http.get(`/api/repo/${$scope.repoId}/files/`).then(
           (res) => {
             $scope.files = res.data;
-            if ($scope.paths.length == 0 || $scope.paths[0] == "") {
-              // redirect to readme
-              const readmeCandidates = {};
-              for (const file in $scope.files) {
-                if (file.toLowerCase().indexOf("readme") > -1) {
-                  readmeCandidates[file.toLowerCase()] = file;
-                }
-              }
-
-              const readmePriority = [
-                "readme.md",
-                "readme.txt",
-                "readme.org",
-                "readme.1st",
-                "readme",
-              ];
-              let best_match = null;
-              for (const p of readmePriority) {
-                if (readmeCandidates[p]) {
-                  best_match = p;
-                  break;
-                }
-              }
-              if (!best_match && Object.keys(readmeCandidates).length > 0)
-                best_match = Object.keys(readmeCandidates)[0];
-              if (best_match) {
-                let uri = $location.url();
-                if (uri[uri.length - 1] != "/") {
-                  uri += "/";
-                }
-
-                // redirect to readme
-                $location.url(uri + readmeCandidates[best_match]);
-              }
-            }
+            selectFile();
             if (callback) {
               return callback();
             }
@@ -1629,6 +1615,9 @@ angular
         if (imageFiles.indexOf(extension) > -1) {
           return "image";
         }
+        if (mediaFiles.indexOf(extension) > -1) {
+          return "media";
+        }
         return "code";
       }
 
@@ -1656,9 +1645,8 @@ angular
               }
 
               if ($scope.type == "md") {
-                const md = contentAbs2Relative(res.data);
                 $scope.content = $sce.trustAsHtml(
-                  marked(md, { baseUrl: $location.url() })
+                  renderMD(res.data, $location.url())
                 );
                 $scope.type = "html";
               }
@@ -1682,13 +1670,22 @@ angular
             },
             (err) => {
               $scope.type = "error";
+              $scope.content = "unknown_error";
               try {
                 err.data = JSON.parse(err.data);
-              } catch (ignore) {}
-              if (err.data.error) {
-                $scope.content = err.data.error;
-              } else {
-                $scope.content = err.data;
+                if (err.data.error) {
+                  $scope.content = err.data.error;
+                } else {
+                  $scope.content = err.data;
+                }
+              } catch (ignore) {
+                console.log(err);
+                if (err.status == -1) {
+                  $scope.content = "request_error";
+                } else if (err.status == 502) {
+                  // cloudflare error
+                  $scope.content = "unreachable";
+                }
               }
             }
           );

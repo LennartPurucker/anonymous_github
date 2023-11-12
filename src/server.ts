@@ -16,6 +16,7 @@ import AnonymizedRepositoryModel from "./database/anonymizedRepositories/anonymi
 import { conferenceStatusCheck, repositoryStatusCheck } from "./schedule";
 import { startWorker } from "./queue";
 import AnonymizedPullRequestModel from "./database/anonymizedPullRequests/anonymizedPullRequests.model";
+import { getUser } from "./routes/route-utils";
 
 function indexResponse(req: express.Request, res: express.Response) {
   if (
@@ -39,10 +40,7 @@ export default async function start() {
   app.use(express.json());
 
   app.use(compression());
-  app.set("trust proxy", true);
   app.set("etag", "strong");
-
-  app.get("/ip", (request, response) => response.send(request.ip));
 
   // handle session and connection
   app.use(initSession());
@@ -61,14 +59,43 @@ export default async function start() {
 
   await redisClient.connect();
 
+  function keyGenerator(
+    request: express.Request,
+    _response: express.Response
+  ): string {
+    if (request.headers["cf-connecting-ip"]) {
+      return request.headers["cf-connecting-ip"] as string;
+    }
+    if (!request.ip && request.socket.remoteAddress) {
+      console.error("Warning: request.ip is missing!");
+      return request.socket.remoteAddress;
+    }
+    // remove port number from IPv4 addresses
+    return request.ip.replace(/:\d+[^:]*$/, "");
+  }
+
   const rate = rateLimit({
     store: new RedisStore({
       sendCommand: (...args: string[]) => redisClient.sendCommand(args),
     }),
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: config.RATE_LIMIT, // limit each IP
+    max: async (request: express.Request, response: express.Response) => {
+      try {
+        const user = await getUser(request);
+        if (user && user.isAdmin) return 0;
+        if (user) return config.RATE_LIMIT;
+      } catch (_) {
+        // ignore: user not connected
+      }
+      // if not logged in, limit to half the rate
+      return config.RATE_LIMIT / 2;
+    },
+    keyGenerator,
     standardHeaders: true,
     legacyHeaders: false,
+    message: (request: express.Request, response: express.Response) => {
+      return `You can only make ${config.RATE_LIMIT} requests every 15min. Please try again later.`;
+    },
   });
   const speedLimiter = slowDown({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -76,6 +103,7 @@ export default async function start() {
     delayMs: 150,
     maxDelayMs: 5000,
     headers: true,
+    keyGenerator,
   });
   const webViewSpeedLimiter = slowDown({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -83,6 +111,7 @@ export default async function start() {
     delayMs: 150,
     maxDelayMs: 5000,
     headers: true,
+    keyGenerator,
   });
 
   app.use("/github", rate, speedLimiter, connectionRouter);
@@ -126,7 +155,7 @@ export default async function start() {
     res.json({
       nbRepositories,
       nbUsers: users.length,
-      nbPageViews: nbPageViews[0].total,
+      nbPageViews: nbPageViews[0]?.total || 0,
       nbPullRequests,
     });
   });

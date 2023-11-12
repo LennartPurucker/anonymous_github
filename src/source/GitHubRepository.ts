@@ -4,7 +4,7 @@ import { IRepositoryDocument } from "../database/repositories/repositories.types
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import RepositoryModel from "../database/repositories/repositories.model";
 import AnonymousError from "../AnonymousError";
-import { database, isConnected } from "../database/database";
+import { isConnected } from "../database/database";
 
 export class GitHubRepository {
   private _data: Partial<{
@@ -44,6 +44,21 @@ export class GitHubRepository {
     return this._data.size;
   }
 
+  async getCommitInfo(
+    sha: string,
+    opt: {
+      accessToken?: string;
+    }
+  ) {
+    const octokit = new Octokit({ auth: opt.accessToken });
+    const commit = await octokit.repos.getCommit({
+      owner: this.owner,
+      repo: this.repo,
+      ref: sha,
+    });
+    return commit.data;
+  }
+
   async branches(opt: {
     accessToken?: string;
     force?: boolean;
@@ -57,7 +72,7 @@ export class GitHubRepository {
       const octokit = new Octokit({ auth: opt.accessToken });
       try {
         const branches = (
-          await octokit.paginate(octokit.repos.listBranches, {
+          await octokit.paginate("GET /repos/{owner}/{repo}/branches", {
             owner: this.owner,
             repo: this.repo,
             per_page: 100,

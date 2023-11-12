@@ -51,7 +51,7 @@ router.get(
 
       // cache the file for 6 hours
       res.header("Cache-Control", "max-age=21600");
-      await pipeline(repo.zip(), res);
+      await pipeline(await repo.zip(), res);
     } catch (error) {
       handleError(error, res, req);
     }
@@ -153,7 +153,9 @@ router.get(
       res.json({
         url: redirectURL,
         download,
-        lastUpdateDate: repo.model.statusDate,
+        lastUpdateDate: repo.model.source.commitDate
+          ? repo.model.source.commitDate
+          : repo.model.anonymizeDate,
       });
     } catch (error) {
       handleError(error, res, req);

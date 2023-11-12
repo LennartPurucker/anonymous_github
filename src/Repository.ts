@@ -1,6 +1,13 @@
 import { join } from "path";
 import storage from "./storage";
-import { RepositoryStatus, Source, Tree, TreeElement, TreeFile } from "./types";
+import {
+  FILE_TYPE,
+  RepositoryStatus,
+  Source,
+  Tree,
+  TreeElement,
+  TreeFile,
+} from "./types";
 import { Readable } from "stream";
 import User from "./User";
 import GitHubStream from "./source/GitHubStream";
@@ -9,7 +16,7 @@ import Zip from "./source/Zip";
 import { anonymizePath } from "./anonymize-utils";
 import UserModel from "./database/users/users.model";
 import { IAnonymizedRepositoryDocument } from "./database/anonymizedRepositories/anonymizedRepositories.types";
-import { anonymizeStream } from "./anonymize-utils";
+import { AnonymizeTransformer } from "./anonymize-utils";
 import GitHubBase from "./source/GitHubBase";
 import Conference from "./Conference";
 import ConferenceModel from "./database/conference/conferences.model";
@@ -18,6 +25,8 @@ import { downloadQueue, removeQueue } from "./queue";
 import { isConnected } from "./database/database";
 import AnonymizedFile from "./AnonymizedFile";
 import AnonymizedRepositoryModel from "./database/anonymizedRepositories/anonymizedRepositories.model";
+import { getRepositoryFromGitHub } from "./source/GitHubRepository";
+import config from "../config";
 
 function anonymizeTreeRecursive(
   tree: TreeElement,
@@ -69,6 +78,7 @@ export default class Repository {
         });
     }
     this.owner = new User(new UserModel({ _id: data.owner }));
+    this.owner.model.isNew = false;
   }
 
   /**
@@ -125,7 +135,7 @@ export default class Repository {
   check() {
     if (
       this._model.options.expirationMode !== "never" &&
-      this.status == "ready" &&
+      this.status == RepositoryStatus.READY &&
       this._model.options.expirationDate
     ) {
       if (this._model.options.expirationDate <= new Date()) {
@@ -133,10 +143,10 @@ export default class Repository {
       }
     }
     if (
-      this.status == "expired" ||
-      this.status == "expiring" ||
-      this.status == "removing" ||
-      this.status == "removed"
+      this.status == RepositoryStatus.EXPIRED ||
+      this.status == RepositoryStatus.EXPIRING ||
+      this.status == RepositoryStatus.REMOVING ||
+      this.status == RepositoryStatus.REMOVED
     ) {
       throw new AnonymousError("repository_expired", {
         object: this,
@@ -147,8 +157,9 @@ export default class Repository {
     fiveMinuteAgo.setMinutes(fiveMinuteAgo.getMinutes() - 5);
 
     if (
-      this.status == "preparing" ||
-      (this.status == "download" && this._model.statusDate > fiveMinuteAgo)
+      this.status == RepositoryStatus.PREPARING ||
+      (this.status == RepositoryStatus.DOWNLOAD &&
+        this._model.statusDate > fiveMinuteAgo)
     ) {
       throw new AnonymousError("repository_not_ready", {
         object: this,
@@ -161,11 +172,11 @@ export default class Repository {
    *
    * @returns A stream of anonymized repository compressed
    */
-  zip(): Readable {
+  zip(): Promise<Readable> {
     return storage.archive(this.originalCachePath, {
       format: "zip",
       fileTransformer: (filename: string) =>
-        anonymizeStream(
+        new AnonymizeTransformer(
           new AnonymizedFile({
             repository: this,
             anonymizedPath: filename,
@@ -188,18 +199,33 @@ export default class Repository {
     ) {
       // Only GitHubBase can be update for the moment
       if (this.source instanceof GitHubBase) {
+        const token = await this.source.getToken();
         const branches = await this.source.githubRepository.branches({
           force: true,
-          accessToken: await this.source.getToken(),
+          accessToken: token,
         });
         const branch = this.source.branch;
         const newCommit = branches.filter((f) => f.name == branch.name)[0]
           ?.commit;
-        if (branch.commit == newCommit && this.status == "ready") {
+        if (
+          branch.commit == newCommit &&
+          this.status == RepositoryStatus.READY
+        ) {
           console.log(`[UPDATE] ${this._model.repoId} is up to date`);
           return;
         }
         this._model.source.commit = newCommit;
+        const commitInfo = await this.source.githubRepository.getCommitInfo(
+          newCommit,
+          {
+            accessToken: token,
+          }
+        );
+        if (commitInfo.commit.author?.date) {
+          this._model.source.commitDate = new Date(
+            commitInfo.commit.author?.date
+          );
+        }
         branch.commit = newCommit;
 
         if (!newCommit) {
@@ -213,7 +239,27 @@ export default class Repository {
           });
         }
         this._model.anonymizeDate = new Date();
-        console.log(`${this._model.repoId} will be updated to ${newCommit}`);
+        console.log(
+          `[UPDATE] ${this._model.repoId} will be updated to ${newCommit}`
+        );
+
+        if (this.source.type == "GitHubDownload") {
+          const repository = await getRepositoryFromGitHub({
+            accessToken: await this.source.getToken(),
+            owner: this.source.githubRepository.owner,
+            repo: this.source.githubRepository.repo,
+          });
+          if (
+            repository.size === undefined ||
+            repository.size > config.MAX_REPO_SIZE
+          ) {
+            console.log(
+              `[UPDATE] ${this._model.repoId} will be streamed instead of downloaded`
+            );
+            this._model.source.type = "GitHubStream";
+          }
+        }
+
         await this.resetSate(RepositoryStatus.PREPARING);
         await downloadQueue.add(this.repoId, this, {
           jobId: this.repoId,
@@ -296,7 +342,11 @@ export default class Repository {
    * @returns
    */
   async removeCache() {
-    if (await storage.exists(this._model.repoId + "/")) {
+    this.model.isReseted = true;
+    await this.model.save();
+    if (
+      (await storage.exists(this._model.repoId + "/")) !== FILE_TYPE.NOT_FOUND
+    ) {
       return storage.rm(this._model.repoId + "/");
     }
   }
@@ -382,7 +432,7 @@ export default class Repository {
   }
 
   get size() {
-    if (this.status != "ready") return { storage: 0, file: 0 };
+    if (this.status != RepositoryStatus.READY) return { storage: 0, file: 0 };
     return this._model.size;
   }
 

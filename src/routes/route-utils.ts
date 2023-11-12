@@ -107,6 +107,8 @@ export function handleError(
   let status = 500;
   if (error.httpStatus) {
     status = error.httpStatus;
+  } else if (error.$metadata?.httpStatusCode) {
+    status = error.$metadata.httpStatusCode;
   } else if (message && message.indexOf("not_found") > -1) {
     status = 404;
   } else if (message && message.indexOf("not_connected") > -1) {
@@ -128,6 +130,9 @@ export async function getUser(req: express.Request) {
     throw new AnonymousError("not_connected", {
       httpStatus: 401,
     });
+  }
+  if (!req.user) {
+    notConnected();
   }
   const user = (req.user as any).user;
   if (!user) {

@@ -32,6 +32,12 @@ export interface SourceBase {
 
 export type Source = GitHubDownload | GitHubStream | Zip;
 
+export enum FILE_TYPE {
+  FILE = "file",
+  FOLDER = "folder",
+  NOT_FOUND = "not_found",
+}
+
 export interface StorageBase {
   /**
    * The type of storage
@@ -42,15 +48,21 @@ export interface StorageBase {
    * check if the path exists
    * @param path the path to check
    */
-  exists(path: string): Promise<boolean>;
+  exists(path: string): Promise<FILE_TYPE>;
 
-  send(p: string, res: Response): void;
+  send(p: string, res: Response): Promise<void>;
 
   /**
    * Read the content of a file
    * @param path the path to the file
    */
-  read(path: string): Readable;
+  read(path: string): Promise<Readable>;
+
+  fileInfo(path: string): Promise<{
+    size: number | undefined;
+    lastModified: Date | undefined;
+    contentType: string;
+  }>;
 
   /**
    * Write data to a file
@@ -109,7 +121,7 @@ export interface StorageBase {
        */
       fileTransformer?: (p: string) => Transform;
     }
-  ): archiver.Archiver;
+  ): Promise<archiver.Archiver>;
 
   /**
    * Create a directory

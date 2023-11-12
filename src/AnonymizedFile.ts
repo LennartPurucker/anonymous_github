@@ -2,12 +2,17 @@ import { join, basename } from "path";
 import { Response } from "express";
 import { Readable } from "stream";
 import Repository from "./Repository";
-import { Tree, TreeElement, TreeFile } from "./types";
+import { FILE_TYPE, Tree, TreeElement, TreeFile } from "./types";
 import storage from "./storage";
 import config from "../config";
-import { anonymizePath, anonymizeStream } from "./anonymize-utils";
+import {
+  anonymizePath,
+  AnonymizeTransformer,
+  isTextFile,
+} from "./anonymize-utils";
 import AnonymousError from "./AnonymousError";
 import { handleError } from "./routes/route-utils";
+import { lookup } from "mime-types";
 
 /**
  * Represent a file in a anonymized repository
@@ -31,9 +36,9 @@ export default class AnonymizedFile {
   }
 
   async sha() {
-    if (this._sha) return this._sha;
+    if (this._sha) return this._sha.replace(/"/g, "");
     await this.originalPath();
-    return this._sha;
+    return this._sha?.replace(/"/g, "");
   }
 
   /**
@@ -170,14 +175,20 @@ export default class AnonymizedFile {
         httpStatus: 403,
       });
     }
-    if (await storage.exists(this.originalCachePath)) {
+    const exist = await storage.exists(this.originalCachePath);
+    if (exist == FILE_TYPE.FILE) {
       return storage.read(this.originalCachePath);
+    } else if (exist == FILE_TYPE.FOLDER) {
+      throw new AnonymousError("folder_not_supported", {
+        object: this,
+        httpStatus: 400,
+      });
     }
     return await this.repository.source?.getFileContent(this);
   }
 
   async anonymizedContent() {
-    return (await this.content()).pipe(anonymizeStream(this));
+    return (await this.content()).pipe(new AnonymizeTransformer(this));
   }
 
   get originalCachePath() {
@@ -201,18 +212,49 @@ export default class AnonymizedFile {
   }
 
   async send(res: Response): Promise<void> {
-    if (this.extension()) {
-      res.contentType(this.extension());
-    }
-    if (this.fileSize) {
-      res.set("Content-Length", this.fileSize.toString());
-    }
     return new Promise(async (resolve, reject) => {
       try {
-        (await this.anonymizedContent())
+        const content = await this.content();
+        const mime = lookup(this.anonymizedPath);
+        if (mime && this.extension() != "ts") {
+          res.contentType(mime);
+        } else if (isTextFile(this.anonymizedPath)) {
+          res.contentType("text/plain");
+        }
+        res.header("Accept-Ranges", "none");
+        let fileInfo: Awaited<ReturnType<typeof storage.fileInfo>>;
+        try {
+          fileInfo = await storage.fileInfo(this.originalCachePath);
+        } catch (error) {
+          // unable to get file size
+          console.error(error);
+        }
+
+        const anonymizer = new AnonymizeTransformer(this);
+
+        anonymizer.once("transform", (data) => {
+          if (data.isText && !mime) {
+            res.contentType("text/plain");
+          }
+          if (fileInfo?.size && !data.wasAnonimized) {
+            // the text files may be anonymized and therefore the size may be different
+            res.header("Content-Length", fileInfo.size.toString());
+          }
+        });
+
+        content
+          .pipe(anonymizer)
           .pipe(res)
-          .on("close", () => resolve())
+          .on("close", () => {
+            if (!content.closed && !content.destroyed) {
+              content.destroy();
+            }
+            resolve();
+          })
           .on("error", (error) => {
+            if (!content.closed && !content.destroyed) {
+              content.destroy();
+            }
             reject(error);
             handleError(error, res);
           });
