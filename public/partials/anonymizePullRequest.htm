@@ -17,6 +17,13 @@
           <h6 class="card-subtitle mb-2 text-muted">
             Fill the information to anonymize! It will only take 5min.
           </h6>
+
+          <h2>Important Notice</h2>
+          <b><i> The final camera-ready copy of the paper should not contain a link pointing to an anonymized repository!</i></b>
+          Instead, the final paper should link to a non-anonymized repository (e.g., on GitHub) that is made available after the review process.
+          We do not guarantee that anonymized repositories are available forever after a conference.
+          We keep the anonymized repositories at least until after the conference (each year).
+
           <h2>Source</h2>
           <!-- pullRequestUrl -->
           <div class="form-group">
@@ -54,55 +61,6 @@
             </div>
           </div>
           <div ng-show="pullRequestUrl">
-            <div class="form-group">
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  id="update"
-                  name="update"
-                  ng-model="options.update"
-                />
-                <label class="form-check-label" for="update">Auto update</label>
-                <small id="updateHelp" class="form-text text-muted"
-                  >Automatically update the anonymized pull request with the
-                  latest updates. The pull request is updated once per day
-                  maximum.</small
-                >
-              </div>
-            </div>
-            <h2>Conference ID</h2>
-            <!-- Conference -->
-            <div class="form-group">
-              <label for="conference"
-                >Conference ID<span class="text-muted">Optional</span></label
-              >
-              <input
-                class="form-control"
-                id="conference"
-                name="conference"
-                ng-model="conference"
-                ng-class="{'is-invalid': anonymize.conference.$invalid}"
-              />
-              <small class="form-text text-muted" ng-show="conference_data"
-                ><a ng-href="{{conference_data.url}}" target="_target"
-                  >{{conference_data.name}}</a
-                >
-                will expire on {{conference_data.endDate | date}}.</small
-              >
-
-              <div
-                class="invalid-feedback"
-                ng-show="anonymize.conference.$error.activated"
-              >
-                The conference is not activated.
-              </div>
-              <small class="form-text text-muted" ng-show="!conference_data">
-                Use the Conference ID that your conference provided you. This
-                will update automatically the anonymization options based on the
-                conference preferences.
-              </small>
-            </div>
             <h2>Anonymization Options</h2>
             <!-- Pull Request ID -->
             <div class="form-group">
@@ -164,11 +122,12 @@
                 name="expiration"
                 ng-model="options.expirationMode"
               >
-                <option value="never" selected>Never expire</option>
-                <option value="redirect">
-                  Redirect to GitHub when expired
-                </option>
-                <option value="remove">Remove when expired</option>
+              <!-- Disabled alternative options due to us downloading the repos and maybe switching URLs in the future -->
+              <!--                <option value="never" selected>Never expire</option>-->
+              <!--                <option value="redirect">-->
+              <!--                  Redirect to GitHub when expired-->
+              <!--                </option>-->
+                <option value="remove" selected>Remove when expired</option>
               </select>
               <small class="form-text text-muted"
                 >Define the expiration strategy for the anonymized
