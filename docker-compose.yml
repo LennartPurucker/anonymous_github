@@ -12,6 +12,7 @@ services:
       - DB_HOSTNAME=mongodb
     volumes:
       - ./repositories_backups:/app/repositories
+      - ./repositories_backups:/app/build/repositories
     ports:
       - $PORT:$PORT
     healthcheck:

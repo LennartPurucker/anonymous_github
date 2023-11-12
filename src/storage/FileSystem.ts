@@ -120,14 +120,17 @@ export default class FileSystem implements StorageBase {
     source?: SourceBase
   ): Promise<void> {
     const pipe = promisify(pipeline);
+    const d = new Date();
+    const fallback = "AnonymizedOnUTC" + d.toISOString();
     return pipe(
       data,
       Extract({
         path: join(config.FOLDER, p),
+
         decodeString: (buf) => {
           const name = buf.toString();
-          const newName = name.substr(name.indexOf("/") + 1);
-          if (newName == "") return "/dev/null";
+          const newName = name.substring(name.indexOf("/") + 1);
+          if (newName == "") return fallback; // figure out how to get rid of this entierly
           return newName;
         },
       })
@@ -151,7 +154,7 @@ export default class FileSystem implements StorageBase {
           // apply transformation on the stream
           rs = rs.pipe(opt.fileTransformer(file.path));
         }
-        const f = file.path.replace(dir, "");
+        const f = file.path.replace("original", "");
         archive.append(rs, {
           name: basename(f),
           prefix: dirname(f),
