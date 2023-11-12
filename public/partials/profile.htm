@@ -204,25 +204,6 @@
                 >
               </div>
               <div class="form-group">
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    id="update"
-                    name="update"
-                    ng-model="options.update"
-                  />
-                  <label class="form-check-label" for="update"
-                    >Auto update</label
-                  >
-                  <small id="termsHelp" class="form-text text-muted"
-                    >Automatically update the anonymized repository with the
-                    latest commit of the repository. The repository is updated
-                    once per hour maximum.</small
-                  >
-                </div>
-              </div>
-              <div class="form-group">
                 <label for="mode">Proxy mode</label>
                 <select
                   class="form-control"
@@ -276,9 +257,9 @@
                 name="expiration"
                 ng-model="options.expirationMode"
               >
-                <option value="never" selected>Never expire</option>
-                <option value="redirect">Redirect to GitHub</option>
-                <option value="remove">Remove anonymized repository</option>
+<!--                <option value="never" selected>Never expire</option>-->
+<!--                <option value="redirect">Redirect to GitHub</option>-->
+                <option value="remove" selected>Remove anonymized repository</option>
               </select>
               <small class="form-text text-muted"
                 >Define the expiration strategy for the repository.</small
