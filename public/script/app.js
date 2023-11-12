@@ -1100,13 +1100,14 @@ angular
       };
       $('[data-toggle="tooltip"]').tooltip();
 
-      $scope.$watch("options.update", (v) => {
-        if (v) {
-          $scope.anonymize.commit.$$element[0].disabled = true;
-        } else {
-          $scope.anonymize.commit.$$element[0].disabled = false;
-        }
-      });
+      $scope.anonymize.commit.$$element[0].disabled = false;
+      // $scope.$watch("options.update", (v) => {
+      //   if (v) {
+      //     $scope.anonymize.commit.$$element[0].disabled = true;
+      //   } else {
+      //     $scope.anonymize.commit.$$element[0].disabled = false;
+      //   }
+      // });
       $scope.$watch("source.branch", async () => {
         const selected = $scope.branches.filter(
           (f) => f.name == $scope.source.branch
@@ -1322,7 +1323,7 @@ angular
         $scope.anonymize.repoUrl.$setValidity("used", true);
         $scope.anonymize.repoUrl.$setValidity("missing", true);
         $scope.anonymize.repoUrl.$setValidity("access", true);
-        $scope.anonymize.conference.$setValidity("activated", true);
+        $scope.anonymize.conference.$setValidity("activated", false);
         $scope.anonymize.terms.$setValidity("format", true);
         $scope.anonymize.terms.$setValidity("regex", true);
       }
