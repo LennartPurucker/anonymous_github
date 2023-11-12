@@ -1,15 +1,15 @@
 version: "3"
 
 services:
-  anonymous_github:
+  anonymous_github_backup:
     build: .
     restart: always
-    image: tdurieux/anonymous_github:v2
+    image: backup_runable
     env_file:
       - ./.env
-    environment:
-      - REDIS_HOSTNAME=redis
-      - DB_HOSTNAME=mongodb
+    environment: 
+      - REDIS_HOSTNAME=redis_b
+      - DB_HOSTNAME=mongodb_b
     volumes:
       - ./repositories_backups:/app/repositories
     ports:
@@ -23,10 +23,10 @@ services:
       timeout: 10s
       retries: 5
     links:
-      - mongodb
-      - redis
+      - mongodb_b
+      - redis_b
 
-  redis:
+  redis_b:
     image: "redis:alpine"
     restart: always
     healthcheck:
@@ -37,8 +37,8 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-
-  mongodb:
+  
+  mongodb_b:
     image: mongo:latest
     restart: on-failure
     environment:
@@ -57,15 +57,15 @@ services:
       timeout: 10s
       retries: 5
 
-  mongodb-backup:
+  mongodb-backup_b:
     image: tiredofit/db-backup
     links:
-      - mongodb
+      - mongodb_b
     volumes:
       - ./db_backups:/backup
     environment:
       - DB_TYPE=mongo
-      - DB_HOST=mongodb
+      - DB_HOST=mongodb_b
       - DB_DUMP_FREQ=60
       - DB_CLEANUP_TIME=240
       - COMPRESSION=XZ
